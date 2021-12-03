@@ -1,0 +1,158 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Home</title>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+        <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+        <script src="pokemonEnum.js"></script>
+        <script src="pokemonStats.js"></script>
+        <script src="flatten.js"></script>
+    </head>
+    <body>
+        <label for="pokemonSelect"> Pokémon </label>
+        <select name="pokemon" id="pokemonSelect" onchange="setPokemonData()"></select>
+        <div id="tmlearnset">
+
+        </div>
+        <button onclick="downloadAsJson()">Download JSON</button>
+    </body>
+
+</html>
+<style>
+    * {
+        font-family: sans-serif;
+        margin: 5px;
+        padding: 5px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    li {
+        list-style-type: none;
+    }
+</style>
+<script>
+    const POKEMON_INFO = [...POKEMON_BASE_INFO.Personal];
+    const TM_LIST = new Array(100).fill(0).map((_, i) => i + 1);
+    let currentSelectedPokemon = 0;
+
+    const SELECT_OPTIONS = Object.keys(PKMN_ENUM).map(pkmn => {
+        const p = pkmn.toLocaleLowerCase()
+        p[0] = p[0].toUpperCase();
+        return `<option value="${pkmn}">${p}</option>`;
+    })
+
+    document.getElementById("pokemonSelect").innerHTML = SELECT_OPTIONS.join("");
+    function selectPokemon(pokemonId) {
+        const pokemon = POKEMON_INFO.find(p => p.monsno === pokemonId);
+        return pokemon || {};
+    }
+
+    function dec2bin(dec) {
+        return (dec >>> 0).toString(2);
+    }
+
+    function bin2dec(bin) {
+        return parseInt(bin, 2);
+    }
+
+    function getSelectedPokemonTMLearnset() {
+       const selectedPokemon = document.getElementById("pokemonSelect").value;
+       const selectedPokemonId = Number(PKMN_ENUM[selectedPokemon.toUpperCase()]);
+       if(isNaN(selectedPokemonId)) {
+           return;
+       }
+
+       const pokemon = selectPokemon(selectedPokemonId);
+       currentSelectedPokemon = selectedPokemonId;
+
+       let CURRENT_TM_LEARNSET = [
+            Array(32).fill(0), //Machine 1
+            Array(32).fill(0), //Machine 2
+            Array(32).fill(0), //Machine 3
+            Array(4).fill(0), //Machine 4
+        ];
+
+       const selectedPokemonTMLearnset1 = dec2bin(Number(pokemon.machine1) || 0); //Max 32
+       const selectedPokemonTMLearnset2 = dec2bin(Number(pokemon.machine2) || 0); //Max 32
+       const selectedPokemonTMLearnset3 = dec2bin(Number(pokemon.machine3) || 0); //Max 32
+       const selectedPokemonTMLearnset4 = dec2bin(Number(pokemon.machine4) || 0); //Max 4
+       
+        const pokemonTmLearnset1 = selectedPokemonTMLearnset1.split("").map(bit => Number(bit));
+        const pokemonTmLearnset2 = selectedPokemonTMLearnset2.split("").map(bit => Number(bit));
+        const pokemonTmLearnset3 = selectedPokemonTMLearnset3.split("").map(bit => Number(bit));
+        const pokemonTmLearnset4 = selectedPokemonTMLearnset4.split("").map(bit => Number(bit));
+
+        for(let i = pokemonTmLearnset1.length - 1; i > 0; i--) {
+            CURRENT_TM_LEARNSET[0][i] = pokemonTmLearnset1[i];
+        }
+        for(let i = pokemonTmLearnset2.length - 1; i > 0; i--) {
+            CURRENT_TM_LEARNSET[1][i] = pokemonTmLearnset2[i];
+        }
+        for(let i = pokemonTmLearnset3.length - 1; i > 0; i--) {
+            CURRENT_TM_LEARNSET[2][i] = pokemonTmLearnset3[i];
+        }
+        for(let i = pokemonTmLearnset4.length - 1; i > 0; i--) {
+            CURRENT_TM_LEARNSET[3][i] = pokemonTmLearnset4[i];
+        }
+
+        return flatten(CURRENT_TM_LEARNSET);
+    }
+
+    function setPokemonData() {
+        const TM_LEARNSET = getSelectedPokemonTMLearnset();
+        const VALID_TMS = [];
+        for(let i = 0; i < TM_LEARNSET.length; i++) {
+            if(TM_LEARNSET[i] === 1) {
+                VALID_TMS.push(i);
+            }
+        }
+
+        const TM_LEARNSET_HTML = VALID_TMS.length === 0 ? "This Pokemon cannot be taught TMs" : TM_LEARNSET.map((tm, i) => {
+            const tmNumber = i + 1;
+            const tmName =  tmNumber >= 10 ? `TM${tmNumber}` : `TM0${tmNumber}`;
+            const HTML = `<label for="${tmName}">${tmName}:</label>` +
+                `<input type="checkbox" id="${tmName}" name="${tmName}" ${tm === 1 ? "checked" : ""}>`;
+            return HTML
+        }).join("");
+
+        document.getElementById("tmlearnset").innerHTML = TM_LEARNSET_HTML;
+        addListenersToCheckboxes();
+    }
+
+    function addListenersToCheckboxes() {
+        let checkboxes = $("input[type=checkbox]");
+        let enabledTms = [];
+
+        checkboxes.change(function() {
+            enabledTms = checkboxes.map(function() { return $(this).prop('checked'); }).get()
+            enabledTms = enabledTms.map(status => status ? '1' : '0');
+
+            let machine1 = bin2dec(enabledTms.slice(0, 32).join(""));
+            let machine2 = bin2dec(enabledTms.slice(32, 64).join(""));
+            let machine3 = bin2dec(enabledTms.slice(64, 96).join(""));
+            let machine4 = bin2dec(enabledTms.slice(96, 100).join(""));
+
+            const pokemonIndex = POKEMON_INFO.findIndex(p => p.monsno === currentSelectedPokemon);
+            POKEMON_INFO[pokemonIndex].machine1 = machine1;
+            POKEMON_INFO[pokemonIndex].machine2 = machine2;
+            POKEMON_INFO[pokemonIndex].machine3 = machine3;
+            POKEMON_INFO[pokemonIndex].machine4 = machine4;
+            console.log("Changed TM learnset for pokemon: ", POKEMON_INFO[pokemonIndex].monsno);
+        });
+    }
+
+    function downloadAsJson() {
+        const clone = JSON.parse(JSON.stringify(POKEMON_BASE_INFO));
+        clone.Personal = POKEMON_INFO;
+        const dataStr = "text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(clone, null ,4));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", "data:" + dataStr);
+        downloadAnchorNode.setAttribute("download", "pokemon.json");
+        document.body.appendChild(downloadAnchorNode); // required for firefox
+        downloadAnchorNode.click();
+    }
+</script>
